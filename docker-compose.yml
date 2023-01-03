@@ -1,0 +1,109 @@
+version: '3'
+
+x-mastodon: &mastodon
+  depends_on:
+    - db
+    - redis
+  env_file: config/mastodon/.env
+  image: tootsuite/mastodon:${MASTODON_VERSION:-latest}
+  networks:
+    - external_network
+    - internal_network
+
+services:
+  db:
+    restart: always
+    image: postgres:14-alpine
+    shm_size: 256mb
+    networks:
+      - internal_network
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'mastodon', '-d', 'mastodon_production']
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: mastodon_production
+      POSTGRES_PASSWORD: testdbpass
+      POSTGRES_USER: mastodon
+
+  idp:
+    environment:
+      SIMPLESAMLPHP_SP_ENTITY_ID: https://localhost
+      SIMPLESAMLPHP_SP_ASSERTION_CONSUMER_SERVICE: https://localhost/auth/auth/saml/callback
+      SIMPLESAMLPHP_SP_SINGLE_LOGOUT_SERVICE: https://localhost/users/saml/idp_sign_out
+    image: kristophjunge/test-saml-idp
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    volumes:
+      - ./config/idp/authsources.php:/var/www/simplesamlphp/config/authsources.php
+
+  proxy:
+    depends_on:
+      - web
+    image: fsouza/docker-ssl-proxy
+    environment:
+      # CLIENT_MAX_BODY_SIZE: 20M
+      DOMAIN: localhost
+      SSL_PORT: 443
+      TARGET_HOST: web
+      TARGET_PORT: 3000
+    networks:
+      - external_network
+    ports:
+      - "443:443"
+    volumes:
+      - ./data/proxy/certs:/etc/nginx/certs
+
+  redis:
+    restart: always
+    image: redis:7-alpine
+    networks:
+      - internal_network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+    volumes:
+      - redis_data:/data
+
+  sidekiq:
+    <<: *mastodon
+    command: bundle exec sidekiq
+    healthcheck:
+      test: ['CMD-SHELL', "ps aux | grep '[s]idekiq\ 6' || false"]
+    restart: always
+    volumes:
+      - ./data/mastodon/public/system:/mastodon/public/system
+
+  streaming:
+    <<: *mastodon
+    command: node ./streaming
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider --proxy=off localhost:4000/api/v1/streaming/health || exit 1']
+    restart: always
+    ports:
+      - '4000:4000'
+
+  web:
+    <<: *mastodon
+    command: bash -c "rm -f /mastodon/tmp/pids/server.pid; bundle exec rails s -p 3000"
+    depends_on:
+      - db
+      - idp
+      - redis
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider --proxy=off localhost:3000/health || exit 1']
+    ports:
+      - '3000:3000'
+    restart: always
+    volumes:
+      - ./data/mastodon/public/system:/mastodon/public/system
+
+networks:
+  external_network:
+  internal_network:
+    internal: true
+
+volumes:
+  mastodon_public_system_data:
+  postgres_data:
+  redis_data:
