@@ -1,6 +1,6 @@
 # mastodon-saml
 
-SAML-authenticating Mastodon Server Example
+Example SAML authentication configuration for Mastodon
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ SAML-authenticating Mastodon Server Example
 | SAML Username | SAML Password   | Name           | Role      |
 | ------------- |---------------- | -------------- | --------- |
 | oliviao       | oliviapass      | Olivia Owner   | Owner     |
-| aliceo        | alicepass       | Alice Admin    | Admin     |
+| alicea        | alicepass       | Alice Admin    | Admin     |
 | mikem         | mikepass        | Mike Moderator | Moderator |
 | niajn         | niajpass        | Niaj Newbie    | (None)    |
 
@@ -37,5 +37,5 @@ SAML-authenticating Mastodon Server Example
 * If a user account is pre-created, then the account's display name will default to the account name, though the user
   can modify their display name later. (The `tootctl` CLI doesn't allow specifying the display name when creating or modifying
   user accounts. Maybe the API allows setting the display name.)
-* If the use account is created on-demand, then the display name is initialized from an attribute in the SAML assertion, but
+* If the user account is created on-demand, then the display name is initialized from an attribute in the SAML assertion, but
   the user can stil modify their display name later.
